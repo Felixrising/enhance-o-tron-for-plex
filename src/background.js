@@ -15,47 +15,77 @@ function handleInstalled(details) {
 // support custom plex domains
 // in firefox, we require the tabs permission to access tab url, then we check it for permissions.
 // in chrome, we can avoid the tabs permission, as chrome will return the tab url for permitted domains. so we get the permissions check for free
-function handleUpdatedTab(tabId, changeInfo, tabInfo) {
-    // firefox
-    if (window.browser && tabInfo.url && tabInfo.url.startsWith("http") && changeInfo.status === 'complete') {
-            chrome.permissions.contains({
+async function handleUpdatedTab(tabId, changeInfo, tabInfo) {
+    // firefox (Note: Firefox still uses MV2, but keeping this for compatibility)
+    if (typeof browser !== 'undefined' && tabInfo.url && tabInfo.url.startsWith("http") && changeInfo.status === 'complete') {
+        try {
+            const permissions = await chrome.permissions.contains({
                 origins: [new URL(tabInfo.url).origin + "/*"]
-            }, function(permissions) {
-                if (permissions) {
-                    // avoid executing a bunch of times
-                    // NB: we use chrome namespace elsewhere typically since its cross compatible, but this API is an exception
-                    // NB2: chrome namespace uses callbacks but browser namespace uses promises
-                    browser.tabs.executeScript(tabId, {code: "enhanceotronLoaded"}).catch((err) => {
-                        // "enhanceotronLoaded" is undefined, inject script
-                        browser.tabs.executeScript(tabId, { code: "let enhanceotronLoaded = true;" }).then((result) => {
-                            chrome.tabs.executeScript(tabId, {file: "/arrive.min.js"}, function () {
-                                chrome.tabs.executeScript(tabId, {file: "/content_script.js"});
-                            });
-                        })
-                            .catch((err) => {
-                                // enhanceotron already loaded
-                                return;
-                            });
-                    })
-                }
             });
+            
+            if (permissions) {
+                try {
+                    // Check if script is already loaded
+                    const result = await chrome.scripting.executeScript({
+                        target: { tabId: tabId },
+                        func: () => typeof window.enhanceotronLoaded !== 'undefined'
+                    });
+                    
+                    if (!result[0].result) {
+                        // Script not loaded, inject it
+                        await chrome.scripting.executeScript({
+                            target: { tabId: tabId },
+                            func: () => { window.enhanceotronLoaded = true; }
+                        });
+                        
+                        await chrome.scripting.executeScript({
+                            target: { tabId: tabId },
+                            files: ["/arrive.min.js"]
+                        });
+                        
+                        await chrome.scripting.executeScript({
+                            target: { tabId: tabId },
+                            files: ["/content_script.js"]
+                        });
+                    }
+                } catch (err) {
+                    console.error('Failed to inject scripts:', err);
+                }
+            }
+        } catch (err) {
+            console.error('Permission check failed:', err);
+        }
     }
     // chrome
-    // !!! be sure TABS permission is NOT in manifest (otherwise code below executes on every page and will throw error. see note above)
-    else if (!window.browser && tabInfo.url && tabInfo.url.startsWith("http") && changeInfo.status === 'complete') {
-        // avoid executing a bunch of times
-        chrome.tabs.executeScript(tabId, {
-            code: "enhanceotronLoaded"
-        }, function(result) {
-            if (result && !result[0]) {
-                // load content script
-                chrome.tabs.executeScript(tabId, { code: "let enhanceotronLoaded = true;" }, function() {
-                    chrome.tabs.executeScript(tabId, { file: "/arrive.min.js"}, function() {
-                        chrome.tabs.executeScript(tabId, { file: "/content_script.js"});
-                    });
+    else if (typeof browser === 'undefined' && tabInfo.url && tabInfo.url.startsWith("http") && changeInfo.status === 'complete') {
+        try {
+            // Check if script is already loaded
+            const result = await chrome.scripting.executeScript({
+                target: { tabId: tabId },
+                func: () => typeof window.enhanceotronLoaded !== 'undefined'
+            });
+            
+            if (!result[0].result) {
+                // Load content script
+                await chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    func: () => { window.enhanceotronLoaded = true; }
+                });
+                
+                await chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    files: ["/arrive.min.js"]
+                });
+                
+                await chrome.scripting.executeScript({
+                    target: { tabId: tabId },
+                    files: ["/content_script.js"]
                 });
             }
-        });
+        } catch (err) {
+            // This is expected for tabs we don't have permission for
+            // console.log('Script injection failed (normal for unpermitted domains):', err);
+        }
     }
 }
 

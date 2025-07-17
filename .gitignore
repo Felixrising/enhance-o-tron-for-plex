@@ -7,3 +7,7 @@
 node_modules
 npm-debug.log*
 *.log
+
+# Package files
+package-extension.ps1
+*.zip
