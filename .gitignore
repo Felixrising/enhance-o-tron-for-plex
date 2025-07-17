@@ -11,3 +11,6 @@ npm-debug.log*
 # Package files
 package-extension.ps1
 *.zip
+
+# Manifest Notes
+MANIFEST_V3_MIGRATION.md

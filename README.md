@@ -6,6 +6,8 @@
 
 Enhanceotron is a browser extension that adds movie trailers, library shuffling, 21:9 ultrawide zoom, and dynamic audio compression to Plex.
 
+**Now supports Chrome Extension Manifest V3** for improved security and performance.
+
 *Plex, the Plex Play logo and Plex Media Server are trademarks of Plex and used under a license.
 
 ![alt tag](https://raw.githubusercontent.com/conceptualspace/enhance-o-tron-for-plex/master/assets/plex-logo-flat-small.png)
